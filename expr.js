@@ -169,7 +169,7 @@ function expr(e) {
 					result = { op: "call", left: result, right: e };
 			}
 			
-			loop: while (tok && precedence[tok] == undefined) {
+			loop: while (tok != undefined && precedence[tok] == undefined) {
 				switch (tok) {
 					case '[': {
 						let arr = [];
@@ -309,11 +309,15 @@ function expr(e) {
 		}
 		
 		function clean(array) {
+			array = [...array];
+			
 			for (let i = 0; i < array.length; ++i) {
 				if (array[i] == undefined || array[i] == null) {
 					array[i] = 0;
 				}
 			}
+			
+			return array;
 		}
 		
 		function makeBuilder(required, exec, reqfn = kind2) {
