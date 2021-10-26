@@ -383,10 +383,10 @@ function expr(e) {
 							 ({arr, n}) => arr.includes(n) + 0),
 			where: makeBuilder({ arr: "array", n: "number", fn: "function" },
 							 ({arr, n, fn}) => arr.map((val, i) => val == n ? call(fn, [val, i]) : val)),
-			take: makeBuilder({ inds: "array", from: "array" },
-							 ({inds, from}) => from.filter((_, i) => inds.includes(i))),
-			drop: makeBuilder({ inds: "array", from: "array" },
-							 ({inds, from}) => from.filter((_, i) => !inds.includes(i))),
+			take: makeBuilder({ ind: "number", from: "array" },
+							 ({ind, from}) => from.slice(0, ind)),
+			drop: makeBuilder({ ind: "number", from: "array" },
+							 ({ind, from}) => from.slice(ind)),
 			group: makeBuilder({ inds: "array", vals: "array" },
 							 ({inds, vals}) => clean(vals.reduce((a, val) => (a[inds.shift()] = val, a), []))),
 			sin: makeBuiltin(Math.sin),
@@ -511,8 +511,6 @@ function expr(e) {
 		}
 		
 		function unary(op, expr) {
-			expr = interpret(expr);
-			
 			switch (op) {
 				case '+': return  expr;
 				case '-': return -expr;
@@ -568,7 +566,7 @@ function expr(e) {
 				case "ident": return find(node);
 				case "binary": return binary(node.op, interpret(node.left), interpret(node.right));
 				case "ternary": return interpret(node.left) ? interpret(node.middle) : interpret(node.right);
-				case "unary": return unary(node.op, node.expr);
+				case "unary": return unary(node.op, interpret(node.expr));
 				case "array": return node.map(value => interpret(value));
 				case "function":
 					node.env = env;
