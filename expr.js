@@ -345,31 +345,26 @@ function expr(e) {
 		let env = {
 			reduce: (args) => {
 				let startacc = 0;
-				let fn = (a,b) => a+b;
+				let fn = undefined;
+				let array = undefined;
 				
-				switch (args.length) {
-					case 0:
-						errors.push("expected at least one argument for function 'reduce'");
-						return 0;
-						
-					default:
-					case 3:
-						return args[2].reduce((acc, val, i) => call(args[0], [acc, val, i]), args[1]);
-						
-					case 2:
-						startacc = args[1];
-					case 1:
-						fn = args[0];
-						break;
+				function f(args) {
+					for (const arg of args) {
+						switch (kind(arg)) {
+							case "number": startacc = arg; break;
+							case "builtin-function":
+							case "function": fn = arg; break;
+							case "array": array = arg; break;
+						}
+					}
+					
+					if (array != undefined && fn != undefined)
+						return array.reduce((acc, val, index) => call(fn, [acc, val, index]), startacc);
+					else
+						return f;
 				}
 				
-				return function([arr]) {
-					let acc = startacc;
-					for (let i = 0; i < arr.length; ++i) {
-						acc = call(fn, [acc, arr[i], i]);
-					}
-					return acc;
-				};
+				return f(args);
 			},
 			filter: makeBuilder({ arr: "array", fn: "function" },
 								({arr, fn}) => arr.filter((value, index) => call(fn, [value, index]))),
