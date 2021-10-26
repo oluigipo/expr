@@ -554,8 +554,8 @@ function expr(e) {
 				case "&": return left & right;
 				case "|": return left | right;
 				case "^": return left ^ right;
-				case "&&": return left && right;
-				case "||": return left || right;
+				case "&&": return left != 0 && right != 0;
+				case "||": return left != 0 || right != 0;
 			}
 			
 			errors.push(`unknown binary operation ${op}`);
