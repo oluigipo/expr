@@ -10,6 +10,10 @@ function expr(e) {
 		return ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch == '_';
 	}
 	
+	function tuple(items) {
+		return { tuple: items };
+	}
+	
 	function kind(node) {
 		if (node === undefined)
 			return undefined;
@@ -21,6 +25,8 @@ function expr(e) {
 			return "builtin-function";
 		if (Array.isArray(node))
 			return "array";
+		if (node.tuple)
+			return "tuple";
 		if (node.op && node.left && node.middle && node.right)
 			return "ternary";
 		if (node.op && node.left && node.right)
@@ -162,82 +168,78 @@ function expr(e) {
 		function factor() {
 			let result = undefined;
 			
-			function push(e) {
-				if (result == undefined)
-					result = e;
-				else
-					result = { op: "call", left: result, right: e };
-			}
-			
-			loop: while (tok != undefined && precedence[tok] == undefined) {
-				switch (tok) {
-					case '[': {
-						let arr = [];
+			switch (tok) {
+				case '[': {
+					let arr = [];
+					
+					next();
+					while (trynext(','))
+						arr.push(0);
+					while (tok != ']') {
+						arr.push(expr());
 						
-						next();
+						if (tok != ']')
+							next(',');
 						while (trynext(','))
 							arr.push(0);
-						while (tok != ']') {
-							arr.push(expr());
-							
-							if (tok != ']')
-								next(',');
-							while (trynext(','))
-								arr.push(0);
-						}
-						next(']');
-						
-						push(arr);
-					} break;
+					}
+					next(']');
 					
-					case '(': {
-						let arr = [];
-						let shouldBeArray = false;
-						
+					if (kind(tok) == "number" && arr.length < tok) {
+						let l = arr.length;
+						for (let i = tok-1; i >= l; --i)
+							arr[i] = 0;
 						next();
-						if (tok != ')' && tok != "=>") {
+					}
+					
+					result = arr;
+				} break;
+				
+				case '(': {
+					let arr = [];
+					
+					next();
+					if (tok != ')' && tok != "=>") {
+						while (trynext(','))
+							arr.push(0);
+							
+						while (tok != ')' && tok != "=>") {
+							arr.push(expr());
+							if (tok != ')' && tok != "=>")
+								next(',');
+							
 							while (trynext(','))
 								arr.push(0);
-								
-							while (tok != ')' && tok != "=>") {
-								arr.push(expr());
-								if (tok != ')' && tok != "=>")
-									next(',');
-								
-								while (trynext(','))
-									arr.push(0);
-							}
 						}
-						
-						if (tok == '=>') {
-							next();
-							push({ args: arr, ret: expr() });
-							next(')');
-						} else {
-							next(')');
-
-							if (arr.length == 1)
-								push(arr[0]);
-							else
-								push(arr);
-						}
-					} break;
+					}
 					
-					default: {
-						if (["number", "ident"].includes(kind(tok))) {
-							push(tok);
-							next();
-						} else {
-							break loop;
-						}
-					} break;
-				}
+					if (tok == '=>') {
+						next();
+						result = { args: arr, ret: expr() };
+						next(')');
+					} else {
+						next(')');
+
+						if (arr.length == 1)
+							result = arr[0];
+						else
+							result = tuple(arr);
+					}
+				} break;
+				
+				default: {
+					if (["number", "ident"].includes(kind(tok))) {
+						result = tok;
+						next();
+					} else {
+						result = 0;
+						errors.push("expected value");
+					}
+				} break;
 			}
 			
-			if (result == undefined) {
-				result = 0;
-				errors.push("expected value");
-			}
+			if (["(", "["].includes(tok) || ["ident", "number"].includes(kind(tok)))
+				result = { op: "call", left: result, right: factor() };
 			
 			return result;
 		}
@@ -371,9 +373,9 @@ function expr(e) {
 				return f(args);
 			},
 			filter: makeBuilder({ arr: "array", fn: "function" },
-								({arr, fn}) => arr.filter((value, index) => call(fn, [value, index]))),
+								({arr, fn}) => arr.filter((value, index) => calla(fn, [value, index]))),
 			map: makeBuilder({ arr: "array", fn: "function" },
-							({arr, fn}) => arr.map((value, index) => call(fn, [value, index]))),
+							({arr, fn}) => arr.map((value, index) => calla(fn, [value, index]))),
 			join: makeBuilder({ first: "array", second: "array" },
 							 ({first, second}) => [...first, ...second]),
 			find: makeBuilder({ arr: "array", n: "number" },
@@ -381,7 +383,7 @@ function expr(e) {
 			has: makeBuilder({ arr: "array", n: "number" },
 							 ({arr, n}) => arr.includes(n) + 0),
 			where: makeBuilder({ arr: "array", n: "number", fn: "function" },
-							 ({arr, n, fn}) => arr.map((val, i) => val == n ? call(fn, [val, i]) : val)),
+							 ({arr, n, fn}) => arr.map((val, i) => val == n ? calla(fn, [val, i]) : val)),
 			take: makeBuilder({ ind: "number", from: "array" },
 							 ({ind, from}) => from.slice(0, ind)),
 			drop: makeBuilder({ ind: "number", from: "array" },
@@ -434,6 +436,10 @@ function expr(e) {
 			return result;
 		}
 		
+		function calla(fn, arr) {
+			return call(fn, tuple(arr));
+		}
+		
 		function call(fn, args) {
 			if (callstack > callstackLimit) {
 				errors.push(`stack overflow (limit: ${callstackLimit})`);
@@ -446,7 +452,9 @@ function expr(e) {
 			
 			switch (kind(fn)) {
 				case "function":
-					if (argsk != "array")
+					if (argsk == "tuple")
+						args = args.tuple;
+					else
 						args = [args];
 					
 					let oldenv = env;
@@ -468,7 +476,9 @@ function expr(e) {
 					env = oldenv;
 					break;
 				case "builtin-function":
-					if (argsk != "array")
+					if (argsk == "tuple")
+						args = args.tuple;
+					else
 						args = [args];
 					
 					result = fn(args);
@@ -486,9 +496,9 @@ function expr(e) {
 							errors.push("array index should be a number");
 							result = 0;
 						}
-					} else if (argsk == "function" || argsk == "builtin-function")
-						result = call(args, [fn]);
-					else if (argsk == "number") {
+					} else if (argsk == "function" || argsk == "builtin-function") {
+						result = call(args, fn);
+					} else if (argsk == "number") {
 						result = [];
 						let i = 0;
 						for (; i < fn.length; ++i)
@@ -510,6 +520,12 @@ function expr(e) {
 		}
 		
 		function unary(op, expr) {
+			let exprk = kind(expr);
+			if (exprk == "tuple") {
+				expr = expr.tuple;
+				exprk = "array";
+			}
+			
 			switch (op) {
 				case '+': return  expr;
 				case '-': return -expr;
@@ -524,6 +540,16 @@ function expr(e) {
 			let rightk = kind(right);
 			
 			if (["+", "-", "/", "*", "%", "<<", ">>", "&", "|", "^"].includes(op)) {
+				if (leftk == "tuple") {
+					left = left.tuple;
+					leftk = "array";
+				}
+				
+				if (rightk == "tuple") {
+					right = right.tuple;
+					rightk = "array";
+				}
+				
 				if (leftk == "array" && rightk == "number")
 					return left.map(v => binary(op, v, right));
 				if (leftk == "number" && rightk == "array")
@@ -541,7 +567,7 @@ function expr(e) {
 				case "%": return left % right;
 				case ">>": return left >> right;
 				case "<<": return left << right;
-				case "|>": return call(right, left);
+				case "|>": return call(right, [left]);
 				case "==": return left == right;
 				case "!=": return left != right;
 				case ">=": return left >= right;
@@ -566,6 +592,7 @@ function expr(e) {
 				case "binary": return binary(node.op, interpret(node.left), interpret(node.right));
 				case "ternary": return interpret(node.left) ? interpret(node.middle) : interpret(node.right);
 				case "unary": return unary(node.op, interpret(node.expr));
+				case "tuple": return tuple(node.tuple.map(value => interpret(value)));
 				case "array": return node.map(value => interpret(value));
 				case "function":
 					node.env = env;
