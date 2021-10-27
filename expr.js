@@ -389,7 +389,14 @@ function expr(e) {
 			drop: makeBuilder({ ind: "number", from: "array" },
 							 ({ind, from}) => from.slice(ind)),
 			group: makeBuilder({ inds: "array", vals: "array" },
-							 ({inds, vals}) => clean(vals.reduce((a, val) => (a[inds.shift()] = val, a), []))),
+							({inds, vals}) => clean(vals.reduce((a, val) => {
+								let i = inds.shift();
+								if (i >= 0) {
+									a[i] !== undefined || (a[i] = []);
+									a[i].push(val);
+								}
+								return a
+							}, []))),
 			sin: makeBuiltin(Math.sin),
 			cos: makeBuiltin(Math.cos),
 			abs: makeBuiltin(Math.abs),
