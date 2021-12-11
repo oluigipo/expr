@@ -167,81 +167,88 @@ function expr(e) {
 		
 		function factor() {
 			let result = undefined;
+			let prev = undefined;
 			
-			switch (tok) {
-				case '[': {
-					let arr = [];
-					
-					next();
-					while (trynext(','))
-						arr.push(0);
-					while (tok != ']') {
-						arr.push(expr());
+			while (true) {
+				switch (tok) {
+					case '[': {
+						let arr = [];
 						
-						if (tok != ']')
-							next(',');
-						while (trynext(','))
-							arr.push(0);
-					}
-					next(']');
-					
-					if (kind(tok) == "number" && arr.length < tok) {
-						let l = arr.length;
-						for (let i = tok-1; i >= l; --i)
-							arr[i] = 0;
 						next();
-					}
-					
-					result = arr;
-				} break;
-				
-				case '(': {
-					let arr = [];
-					
-					next();
-					if (tok != ')' && tok != "=>") {
 						while (trynext(','))
 							arr.push(0);
-							
-						while (tok != ')' && tok != "=>") {
+						while (tok != ']') {
 							arr.push(expr());
-							if (tok != ')' && tok != "=>")
-								next(',');
 							
+							if (tok != ']')
+								next(',');
 							while (trynext(','))
 								arr.push(0);
 						}
-					}
+						next(']');
+						
+						if (kind(tok) == "number" && arr.length < tok) {
+							let l = arr.length;
+							for (let i = tok-1; i >= l; --i)
+								arr[i] = 0;
+							next();
+						}
+						
+						result = arr;
+					} break;
 					
-					if (tok == '=>') {
+					case '(': {
+						let arr = [];
+						
 						next();
-						result = { args: arr, ret: expr() };
-						next(')');
-					} else {
-						next(')');
+						if (tok != ')' && tok != "=>") {
+							while (trynext(','))
+								arr.push(0);
+								
+							while (tok != ')' && tok != "=>") {
+								arr.push(expr());
+								if (tok != ')' && tok != "=>")
+									next(',');
+								
+								while (trynext(','))
+									arr.push(0);
+							}
+						}
+						
+						if (tok == '=>') {
+							next();
+							result = { args: arr, ret: expr() };
+							next(')');
+						} else {
+							next(')');
 
-						if (arr.length == 1)
-							result = arr[0];
-						else
-							result = tuple(arr);
-					}
-				} break;
+							if (arr.length == 1)
+								result = arr[0];
+							else
+								result = tuple(arr);
+						}
+					} break;
+					
+					default: {
+						if (["number", "ident"].includes(kind(tok))) {
+							result = tok;
+							next();
+						} else {
+							result = 0;
+							errors.push("expected value");
+						}
+					} break;
+				}
 				
-				default: {
-					if (["number", "ident"].includes(kind(tok))) {
-						result = tok;
-						next();
-					} else {
-						result = 0;
-						errors.push("expected value");
-					}
-				} break;
+				if (prev)
+					result = { op: "call", left: prev, right: result };
+				
+				if (["(", "["].includes(tok) || ["ident", "number"].includes(kind(tok))) {
+					prev = result;
+				} else {
+					return result;
+				}
 			}
-			
-			if (["(", "["].includes(tok) || ["ident", "number"].includes(kind(tok)))
-				result = { op: "call", left: result, right: factor() };
-			
-			return result;
 		}
 		
 		function expr(lvl = 0) {
@@ -611,6 +618,19 @@ function expr(e) {
 		return interpret(ast);
 	}
 	
+	function stringify(node) {
+		switch (kind(node)) {
+			case "number": return String(node);
+			case "ident": return `identifier: ${node}`;
+			case "tuple": node = node.tuple;
+			case "array": return `[${node.map(stringify).join(', ')}]`;
+			case "function": return `function: (TODO)\n`;
+			case "builtin-function": return `builtin-function: ${node.name}`;
+		}
+		
+		return "what?";
+	}
+	
 	let tokens = tokenize(e);
 	let ast = parse(tokens);
 	let result = run(ast);
@@ -618,5 +638,6 @@ function expr(e) {
 	if (errors.length > 0)
 		console.log({ errors });
 	
+	//return stringify(result);
 	return result;
 }
