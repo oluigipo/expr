@@ -10,8 +10,7 @@ simple expression parser with weird features in javascript
 * `arr0 arr1` is going to use the first item of the `arr1` as an index to `arr0`. this only exists so we can do `arr[index]`;
 * parenthesis are used to change precedence of infix operators, but can also be used to make arrays if it has a `,` in it;
 * `(arg0,, arg2 => expr)` is a lambda, parenthesis are needed;
-* `func(arg0, arg1)` is the same as `func [arg0, arg1]`, you are just passing an array of arguments to the function;
-* function calls are left-to-right, so `a b c` is `a(b c)`;
+* function calls are left-to-right, so `a b c` is `(a b) c`;
 * booleans are 0 (false) and anything other than 0 (true);
 * infix operators precedence and what they do:
 * * `?`: ternary operator, syntax is `cond ? then : otherwise`;
